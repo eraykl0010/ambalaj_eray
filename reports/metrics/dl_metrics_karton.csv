@@ -1,7 +1,0 @@
-condition,target,model,accuracy_mean,accuracy_std,f1_mean,f1_std,precision_mean,recall_mean,elapsed_sec
-karton,valence,1D_CNN,0.5737,0.0861,0.4819,0.1239,0.6747,0.5737,27.5
-karton,valence,CNN_LSTM,0.5316,0.0898,0.4018,0.1539,0.6303,0.5316,26.4
-karton,valence,EEGNet_Lite,0.543,0.0733,0.4494,0.104,0.6144,0.543,23.9
-karton,arousal,1D_CNN,0.5712,0.0579,0.4645,0.0887,0.5553,0.5712,39.1
-karton,arousal,CNN_LSTM,0.5357,0.1068,0.4198,0.1219,0.5687,0.5357,21.5
-karton,arousal,EEGNet_Lite,0.4507,0.0852,0.3188,0.0696,0.4708,0.4507,16.6

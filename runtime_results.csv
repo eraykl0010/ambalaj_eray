@@ -1,6 +1,0 @@
-Stage,Mean_sec,Std_sec,Per_segment_ms,Percent_total
-Data Loading,0.0666,0.0141,3.17,0.4
-Filtering,0.0119,0.0035,0.57,0.1
-ICA,2.1411,0.7406,101.96,11.5
-Segmentation,0.0002,0.0,0.01,0.0
-Feature Extraction,16.3515,7.1088,778.64,88.0

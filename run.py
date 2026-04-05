@@ -41,22 +41,6 @@ from labels.survey import (
     load_survey, apply_median_split, label_all_features,
     merge_labels, generate_label_qc,
 )
-from models.unsupervised import run_unsupervised_analysis
-from models.supervised import run_supervised_pipeline
-
-try:
-    from models.deep_learning import run_dl_pipeline
-    HAS_DL = True
-except ImportError:
-    HAS_DL = False
-    def run_dl_pipeline(*args, **kwargs):
-        print("[!] PyTorch bulunamadı — Aşama 9 atlanıyor.")
-        print("    pip install torch torchvision ile yükleyin.")
-        return {}
-
-from topomaps.generator import (
-    generate_topomaps_for_condition, plot_topomap_examples, plot_topomap_stats,
-)
 
 
 def run_stage1(cfg: dict, max_plot: int = 5):
@@ -519,125 +503,6 @@ def run_stage6(cfg: dict):
     print(f"\nAşama 6 tamamlandı! Grafikler: {fig_dir}")
 
 
-def run_stage7(cfg: dict):
-    """Aşama 7 — Unsupervised Keşif (PCA, t-SNE, UMAP, K-Means, GMM)"""
-    print("=" * 60)
-    print("  AŞAMA 7 — Unsupervised Keşif")
-    print("=" * 60)
-
-    feat_dir = Path(cfg["paths"]["output_dir"]) / "feature_datasets"
-    fig_dir = Path(cfg["paths"]["reports_dir"]) / "figures" / "stage7_unsupervised"
-
-    # Etiketli veri yükle
-    all_path = feat_dir / "features_all_labeled.csv"
-    if not all_path.exists():
-        print("[!] features_all_labeled.csv bulunamadı — önce Aşama 6'yı çalıştırın.")
-        return
-
-    import pandas as pd
-    df_all = pd.read_csv(all_path)
-    print(f"Yüklendi: {all_path} → {df_all.shape}")
-
-    # 1. Tüm veri
-    run_unsupervised_analysis(df_all, cfg, label="all", figures_dir=fig_dir)
-
-    # 2. Koşul bazlı
-    for cond in ["karton", "camsise"]:
-        cond_path = feat_dir / f"features_{cond}_labeled.csv"
-        if cond_path.exists():
-            df_cond = pd.read_csv(cond_path)
-            run_unsupervised_analysis(df_cond, cfg, label=cond, figures_dir=fig_dir)
-        else:
-            sub = df_all[df_all["condition"] == cond]
-            if len(sub) > 20:
-                run_unsupervised_analysis(sub, cfg, label=cond, figures_dir=fig_dir)
-
-    print(f"\nAşama 7 tamamlandı! Grafikler: {fig_dir}")
-
-
-def run_stage8(cfg: dict):
-    """Aşama 8 — Supervised ML"""
-    print("=" * 60)
-    print("  AŞAMA 8 — Supervised ML")
-    print("=" * 60)
-
-    feat_dir = Path(cfg["paths"]["output_dir"]) / "feature_datasets"
-    fig_dir = Path(cfg["paths"]["reports_dir"]) / "figures" / "stage8_supervised"
-    met_dir = Path(cfg["paths"]["reports_dir"]) / "metrics"
-
-    import pandas as pd
-
-    # Koşul bazlı
-    for condition in ["karton", "camsise"]:
-        path = feat_dir / f"features_{condition}_labeled.csv"
-        if path.exists():
-            df = pd.read_csv(path)
-            print(f"\n{condition.upper()}: {df.shape}")
-            run_supervised_pipeline(df, cfg, condition=condition,
-                                    figures_dir=fig_dir, metrics_dir=met_dir)
-        else:
-            print(f"  [UYARI] {path} bulunamadı — atlanıyor.")
-
-    # Tüm veri
-    all_path = feat_dir / "features_all_labeled.csv"
-    if all_path.exists():
-        df_all = pd.read_csv(all_path)
-        print(f"\nTÜM VERİ: {df_all.shape}")
-        run_supervised_pipeline(df_all, cfg, condition="all",
-                                figures_dir=fig_dir, metrics_dir=met_dir)
-
-    print(f"\nAşama 8 tamamlandı! Grafikler: {fig_dir}, Metrikler: {met_dir}")
-
-
-def run_stage9(cfg: dict):
-    """Aşama 9 — Deep Learning (1D CNN, CNN-LSTM, EEGNet)"""
-    print("=" * 60)
-    print("  AŞAMA 9 — Deep Learning")
-    print("=" * 60)
-
-    fig_dir = Path(cfg["paths"]["reports_dir"]) / "figures" / "stage9_deeplearning"
-    met_dir = Path(cfg["paths"]["reports_dir"]) / "metrics"
-
-    for condition in ["karton", "camsise"]:
-        print(f"\n{'#'*50}")
-        print(f"  Koşul: {condition.upper()}")
-        print(f"{'#'*50}")
-        run_dl_pipeline(cfg, condition=condition,
-                        figures_dir=fig_dir, metrics_dir=met_dir)
-
-    print(f"\nAşama 9 tamamlandı! Grafikler: {fig_dir}, Metrikler: {met_dir}")
-
-
-def run_stage10(cfg: dict):
-    """Aşama 10 — Topomap Üretimi"""
-    print("=" * 60)
-    print("  AŞAMA 10 — Topomap Üretimi")
-    print("=" * 60)
-
-    fig_dir = Path(cfg["paths"]["reports_dir"]) / "figures" / "stage10_topomaps"
-    topo_cfg = cfg.get("topomaps", {})
-    resolution = topo_cfg.get("resolution", 64)
-    save_format = topo_cfg.get("save_format", "both")
-
-    all_stats = {}
-    for condition in ["karton", "camsise"]:
-        print(f"\n{'='*40}")
-        print(f"  Koşul: {condition.upper()}")
-        print(f"{'='*40}")
-
-        stats = generate_topomaps_for_condition(
-            cfg, condition, resolution=resolution, save_format=save_format,
-        )
-        all_stats[condition] = stats
-
-        plot_topomap_examples(cfg, condition,
-                              save_path=fig_dir / f"topomap_examples_{condition}.png")
-
-    plot_topomap_stats(all_stats, save_path=fig_dir / "topomap_stats.png")
-
-    print(f"\nAşama 10 tamamlandı! Grafikler: {fig_dir}")
-
-
 # ====================================================================
 #  CLI
 # ====================================================================
@@ -699,24 +564,12 @@ def main():
     elif args.stage == 6:
         run_stage6(cfg)
 
-    elif args.stage == 7:
-        run_stage7(cfg)
-
-    elif args.stage == 8:
-        run_stage8(cfg)
-
-    elif args.stage == 9:
-        run_stage9(cfg)
-
-    elif args.stage == 10:
-        run_stage10(cfg)
-
-    # elif args.stage == 11:
+    # elif args.stage == 7:
     #     run_stage11(cfg, ...)
 
     else:
         print(f"[!] Aşama {args.stage} henüz tanımlı değil.")
-        print("Mevcut aşamalar: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10")
+        print("Mevcut aşamalar: 1, 2, 3, 4, 5, 6")
 
 
 if __name__ == "__main__":
