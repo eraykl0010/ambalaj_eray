@@ -1,0 +1,41 @@
+# ============================================================================
+#  Sürdürülebilir Ambalaj EEG Projesi — Bağımlılıklar
+#  Python 3.11.9 | CUDA (RTX 5070Ti Mobile)
+# ============================================================================
+
+# --- Temel ---
+numpy>=1.24,<2.0
+pandas>=2.0
+scipy>=1.11
+PyYAML>=6.0
+tqdm>=4.65
+pyarrow>=14.0               # Parquet I/O
+
+# --- EEG & Sinyal İşleme ---
+mne>=1.6                     # ICA, topomap, montaj
+scikit-learn>=1.3            # ML modelleri, scaling, GroupKFold
+
+# --- Feature Çıkarımı ---
+antropy>=0.1.6               # Entropi metrikleri (ApEn, PE, SE, FuzzyEn)
+nolds>=0.5.2                 # Nonlinear (LLE, Hurst, DFA)
+
+# --- Görselleştirme ---
+matplotlib>=3.7
+seaborn>=0.12
+
+# --- Unsupervised ---
+umap-learn>=0.5
+
+# --- Supervised ML ---
+xgboost>=2.0
+optuna>=3.4                  # Hiperparametre optimizasyonu
+
+# --- Deep Learning (PyTorch — CUDA) ---
+# Not: PyTorch'u CUDA versiyonunuza göre kurun:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+torch>=2.2
+torchvision>=0.17
+
+# --- Yardımcı ---
+Pillow>=10.0                 # Topomap görüntü kaydetme
+joblib>=1.3

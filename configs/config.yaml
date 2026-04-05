@@ -1,0 +1,264 @@
+# ============================================================================
+#  Sürdürülebilir Ambalaj EEG Projesi — Ana Konfigürasyon
+# ============================================================================
+# Bu dosyadaki her parametre pipeline boyunca tek merkezden okunur.
+# Değişiklik yapmak için sadece bu dosyayı düzenleyin.
+# ============================================================================
+
+# --- Veri Yolları -----------------------------------------------------------
+paths:
+  # Ham EEG verilerinin kök dizini
+  raw_data_root: "C:\\Users\\Eray\\Desktop\\Surdurulebilir Ambalaj Deney Verileri\\EEG Signals"
+  # Anket CSV dosyası
+  survey_csv: "C:\\Users\\Eray\\Desktop\\Surdurulebilir Ambalaj Deney Verileri\\survey_ratings.csv"
+  # Pipeline çıktı dizini
+  output_dir: "outputs"
+  # Rapor dizini
+  reports_dir: "reports"
+
+# --- Deney Tasarımı ---------------------------------------------------------
+experiment:
+  conditions:
+    - "karton"       # Sürdürülebilir ambalaj (odun fiberi/kağıt)
+    - "camsise"      # Cam şişe ambalajı
+  # EEG dosya adı öncelikleri (ilk bulunan kullanılır)
+  eeg_file_names:
+    - "s1_eeg.csv"
+    - "eeg_eeg.csv"
+  # Klasör ön-ekleri (Test_ ile başlayan)
+  folder_prefixes:
+    karton:  "Test_karton"
+    camsise: "Test_camsise"
+
+# --- EEG Cihaz Bilgileri ----------------------------------------------------
+eeg:
+  device: "Bitbrain Versatile EEG 32"
+  sampling_rate: 256          # Hz
+  num_channels_total: 32      # CSV'deki toplam sütun sayısı
+
+  # Tam kanal montajı (info.json'dan — sütun sırasıyla)
+  # İndeks 0'dan başlar; CSV sütun sırası ile birebir eşleşir.
+  channel_names:
+    - "Fp1"   # 0
+    - "Fpz"   # 1
+    - "Fp2"   # 2
+    - "AF3"   # 3
+    - "AF4"   # 4
+    - "F7"    # 5
+    - "F3"    # 6
+    - "Fz"    # 7
+    - "F4"    # 8
+    - "F8"    # 9
+    - "FC5"   # 10
+    - "FC1"   # 11
+    - "FC2"   # 12
+    - "FC6"   # 13
+    - "T7"    # 14
+    - "C3"    # 15
+    - "Cz"    # 16
+    - "C4"    # 17
+    - "T8"    # 18
+    - "CP5"   # 19
+    - "CP1"   # 20
+    - "CP2"   # 21
+    - "CP6"   # 22
+    - "P7"    # 23
+    - "P3"    # 24
+    - "Pz"    # 25
+    - "P4"    # 26
+    - "P8"    # 27
+    - "POz"   # 28
+    - "O1"    # 29
+    - "Oz"    # 30
+    - "O2"    # 31
+
+  # ─── Kanal Dışlama Listesi ───
+  # Buraya eklediğiniz kanal adları pipeline'dan tamamen çıkarılır.
+  # Örnek: ["Fpz", "Oz", "Cz"]  → bu 3 kanal kullanılmaz.
+  # Boş bırakırsanız tüm 32 kanal kullanılır.
+  excluded_channels: []
+
+# --- Ön İşleme (Filtreleme) -------------------------------------------------
+preprocessing:
+  filters:
+    # Band-pass filtre
+    bandpass:
+      enabled: true
+      low_freq: 0.5            # Hz (high-pass kesim)
+      high_freq: 45.0          # Hz (low-pass kesim)
+      order: 3                 # Butterworth derecesi (max 3)
+      filter_type: "butter"    # butterworth
+
+    # Notch filtre (şebeke gürültüsü)
+    notch:
+      enabled: true
+      freq: 50.0               # Hz (Türkiye şebekesi)
+      quality_factor: 30.0     # Q faktörü
+
+  # ICA (Artifact Azaltma)
+  ica:
+    enabled: true
+    method: "fastica"          # "fastica" | "infomax" | "picard"
+    n_components: null         # null → kanal sayısı kadar; veya int
+    random_state: 42
+    max_iter: 2000
+    # Otomatik artifact tespit eşikleri
+    artifact_detection:
+      # EOG (göz) bileşenlerini tespit etmek için
+      eog_criterion: "correlation"   # korelasyon tabanlı
+      eog_threshold: 0.3             # |r| > 0.3 → artifact
+      # Genel kurtosis/varyans tabanlı
+      kurtosis_threshold: 3.0
+      variance_threshold_std: 3.0    # ortalamadan 3σ uzaktaki bileşenler
+
+# --- Segmentasyon -----------------------------------------------------------
+segmentation:
+  window_seconds: 4.0          # Pencere süresi (saniye)
+  overlap_ratio: 0.5           # %50 örtüşme
+  # Hesaplanan değerler (kod tarafında otomatik doğrulanır):
+  # window_samples = 4.0 * 256 = 1024
+  # step_samples   = 1024 * (1 - 0.5) = 512
+  min_segment_duration: 2.0    # Kayıt sonunda kalan kısa parça için min süre (sn)
+
+# --- Feature Çıkarımı -------------------------------------------------------
+features:
+  # Zaman alanı özellikleri
+  time_domain:
+    enabled: true
+    features:
+      - "hjorth_activity"
+      - "hjorth_mobility"
+      - "hjorth_complexity"
+      - "mean"
+      - "skewness"
+      - "rms"
+      - "mad"                  # Mean Absolute Deviation
+      - "kurtosis"
+      - "energy"
+
+  # Frekans alanı (sub-band güçleri)
+  frequency_domain:
+    enabled: true
+    method: "welch"            # PSD tahmin yöntemi
+    bands:
+      delta:  [0.5,  4.0]
+      theta:  [4.0,  8.0]
+      alpha:  [8.0, 13.0]
+      beta:   [13.0, 30.0]
+      gamma:  [30.0, 45.0]
+
+  # Doğrusal olmayan özellikler
+  nonlinear:
+    enabled: true
+    features:
+      - "lle"                  # Largest Lyapunov Exponent
+      - "katz_fd"              # Katz Fractal Dimension
+      - "higuchi_fd"           # Higuchi Fractal Dimension
+      - "hurst"                # Hurst Exponent
+      - "dfa"                  # Detrended Fluctuation Analysis
+    higuchi_kmax: 10           # Higuchi FD parametre
+
+  # Entropi tabanlı özellikler
+  entropy:
+    enabled: true
+    features:
+      - "apen"                 # Approximate Entropy
+      - "pe"                   # Permutation Entropy
+      - "fuzzen"               # Fuzzy Entropy
+      - "se"                   # Sample Entropy
+    # Entropi parametreleri
+    embedding_dim: 2           # m (ApEn, SampEn, FuzzyEn)
+    tolerance_r: 0.2           # r = 0.2 * std (ApEn, SampEn, FuzzyEn)
+    pe_order: 3                # Permutation entropy order
+    pe_delay: 1                # Permutation entropy delay
+
+# --- Etiketleme (Anket) -----------------------------------------------------
+labels:
+  # Ölçek aralığı
+  scale_min: -2
+  scale_max: 2
+  # Binarizasyon stratejisi
+  binarization: "median"       # "median" | "zero" (0 eşiği)
+  targets:
+    - "valence"
+    - "arousal"
+
+# --- Unsupervised Keşif ------------------------------------------------------
+unsupervised:
+  pca:
+    n_components: 50
+  tsne:
+    perplexity: 30
+    n_components: 2
+  umap:
+    enabled: true
+    n_neighbors: 15
+    min_dist: 0.1
+    n_components: 2
+  clustering:
+    k_values: [2, 3, 4]
+    random_state: 42
+
+# --- Supervised ML -----------------------------------------------------------
+supervised:
+  cv_folds: 5                  # GroupKFold fold sayısı
+  pca_components: 50           # Feature → PCA indirgeme (896 → 50), null → indirgeme yok
+  hyperparam_search: false     # true → arama aç (daha yavaş, daha iyi sonuç)
+  use_optuna: false            # Optuna varsa kullan (yoksa RandomizedSearchCV)
+  n_search_iter: 10            # RandomizedSearchCV iterasyon sayısı
+  optuna_n_trials: 20          # Optuna deneme sayısı
+  group_column: "subject_id"
+  scoring: "f1_weighted"
+
+  scaling: "standard"          # "standard" | "minmax" | "robust" | null
+
+# --- Deep Learning (1D Sinyal) -----------------------------------------------
+deep_learning:
+  seed: 42
+  n_epochs: 50                 # Epoch sayısı
+  batch_size: 32
+  learning_rate: 0.001
+  patience: 10                 # Early stopping patience
+  cv_folds: 5                 # GroupKFold fold sayısı
+
+# --- Topomap Üretimi ---------------------------------------------------------
+topomaps:
+  resolution: 64               # Görüntü boyutu (64×64)
+  save_format: "both"          # "png", "npz", "both"
+
+# --- Transfer Learning (Topomap Görüntü) ------------------------------------
+transfer_learning:
+  topomap:
+    image_size: 224            # piksel (ImageNet standart)
+    colormap: "RdBu_r"
+    bands_to_plot: ["alpha", "beta", "theta", "delta", "gamma"]
+    dpi: 100
+    cache: true                # Üretilen görselleri diske kaydet
+
+  models:
+    - name: "ResNet18"
+      pretrained: true
+      freeze_layers: "all_except_fc"   # Sadece son FC katmanını eğit
+      fine_tune_from_epoch: 10         # Bu epoch'tan sonra tüm ağı aç
+    - name: "AlexNet"
+      pretrained: true
+      freeze_layers: "all_except_fc"
+      fine_tune_from_epoch: 10
+    - name: "GoogLeNet"
+      pretrained: true
+      freeze_layers: "all_except_fc"
+      fine_tune_from_epoch: 10
+
+  training:
+    batch_size: 32
+    epochs: 50
+    learning_rate: 0.0001      # Fine-tuning için düşük LR
+    weight_decay: 0.0001
+    early_stopping_patience: 10
+
+# --- Genel Ayarlar ----------------------------------------------------------
+general:
+  random_state: 42
+  n_jobs: -1                   # Paralel işlem (-1 = tüm çekirdekler)
+  verbose: 1
+  log_level: "INFO"
