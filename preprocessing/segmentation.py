@@ -1,15 +1,24 @@
 """
-Aşama 4 — Segmentasyon
+Aşama 4 — Segmentasyon (Leakage-Free)
 
 Görevler:
     1. ICA-temizlenmiş EEG'yi 4s pencereler halinde segmentlere ayır.
-    2. %50 overlap (512 örnek kayma) uygula.
+    2. Overlap KULLANMAZ (overlap_ratio = 0.0) → veri sızıntısı (leakage) önlenir.
     3. Her segment: (1024, n_channels) matris + metadata.
     4. Segment'leri denek/koşul bazlı dosyalara kaydet (.npz).
     5. Segment envanteri (CSV) oluştur.
     6. QC grafikleri üret.
 
-Parametreler config.yaml → segmentation bölümünden okunur.
+ÖNEMLİ — Neden overlap kaldırıldı?
+    %50 overlap ile komşu segmentler 2 saniyelik veriyi paylaşıyordu.
+    MATLAB Classification Learner rastgele k-fold CV yaptığında,
+    aynı kaydın örtüşen segmentleri hem eğitim hem test setine düşebiliyordu.
+    Bu doğrudan veri sızıntısıdır (data leakage) ve yapay yüksek doğruluk üretir.
+    Overlap=0 ile her segment tamamen bağımsız veri içerir.
+
+ÖNEMLİ — Neden zero-padding kaldırıldı?
+    Kayıt sonundaki eksik pencereye sıfır eklemek, özellikle frekans ve entropi
+    tabanlı feature'ları ciddi şekilde bozar. Bu son kısa segment artık atılır.
 
 Kullanım:
     python run.py --stage 4
@@ -47,6 +56,9 @@ def segment_signal(
     """
     Sürekli EEG verisini sabit pencerelerle segmentlere ayır.
 
+    Leakage-free: overlap_ratio = 0.0 → her segment bağımsız veri içerir.
+    Eksik son pencere atılır (zero-padding yapılmaz).
+
     Args:
         data:  (n_samples, n_channels) — temizlenmiş EEG
         cfg:   config sözlüğü
@@ -56,17 +68,17 @@ def segment_signal(
     """
     seg_params = get_segment_params(cfg)
     window_samples = seg_params["window_samples"]   # 1024
-    step_samples = seg_params["step_samples"]       # 512
-    sr = seg_params["sampling_rate"]                # 256
-    min_dur = cfg["segmentation"].get("min_segment_duration", 2.0)
-    min_samples = int(min_dur * sr)
+    step_samples = seg_params["step_samples"]        # overlap=0 → 1024
+    sr = seg_params["sampling_rate"]                 # 256
+    overlap = seg_params["overlap_ratio"]
 
     n_samples, n_channels = data.shape
 
-    # Doğrulama
-    assert window_samples == int(cfg["segmentation"]["window_seconds"] * sr), \
-        f"Window hesaplama hatası: {window_samples} != " \
-        f"{cfg['segmentation']['window_seconds']} * {sr}"
+    # Leakage uyarısı
+    if overlap > 0.0:
+        print(f"  [UYARI] overlap_ratio={overlap} > 0 — segmentler arası veri "
+              f"paylaşımı var! Leakage riski mevcut.")
+        print(f"          Classification için overlap_ratio=0.0 önerilir.")
 
     segments = []
     start = 0
@@ -76,18 +88,17 @@ def segment_signal(
         segments.append(seg)
         start += step_samples
 
-    # Kayıt sonunda kalan kısım
+    # Kayıt sonundaki eksik pencere ATIlır (zero-padding yapılmaz)
     remaining = n_samples - start
-    if remaining >= min_samples:
-        # Kısa segment: zero-pad ile tam pencereye tamamla
-        seg = np.zeros((window_samples, n_channels), dtype=data.dtype)
-        seg[:remaining, :] = data[start : start + remaining, :]
-        segments.append(seg)
-        print(f"  [SEG] Son segment zero-padded: {remaining}/{window_samples} örnek")
+    if remaining > 0:
+        print(f"  [SEG] Son {remaining} örnek ({remaining/sr:.2f}s) "
+              f"tam pencereye sığmadığı için atıldı.")
 
     print(f"  [SEG] Toplam segment: {len(segments)} "
-          f"(pencere={window_samples}, adım={step_samples}, "
-          f"kayıt={n_samples} örnek = {n_samples/sr:.1f}s)")
+          f"(pencere={window_samples} örnek={window_samples/sr:.1f}s, "
+          f"adım={step_samples} örnek={step_samples/sr:.1f}s, "
+          f"overlap={overlap*100:.0f}%, "
+          f"kayıt={n_samples} örnek={n_samples/sr:.1f}s)")
 
     return segments
 
@@ -244,7 +255,7 @@ def plot_segmentation_overview(
     ax.set_title(
         f"{title}\n"
         f"Pencere={window/sr:.1f}s ({window} örnek), "
-        f"Overlap=%{cfg['segmentation']['overlap_ratio']*100:.0f}, "
+        f"Overlap={cfg['segmentation']['overlap_ratio']*100:.0f}%, "
         f"Toplam={len(segments)} segment",
         fontsize=12, fontweight="bold",
     )
@@ -420,7 +431,7 @@ if __name__ == "__main__":
     sr = cfg["eeg"]["sampling_rate"]
 
     print("=" * 60)
-    print("  AŞAMA 4 — Segmentasyon")
+    print("  AŞAMA 4 — Segmentasyon (Leakage-Free)")
     print("=" * 60)
 
     test_path = Path("/mnt/user-data/uploads/s1_eeg.csv")

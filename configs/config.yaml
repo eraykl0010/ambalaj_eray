@@ -114,7 +114,7 @@ preprocessing:
 # --- Segmentasyon -----------------------------------------------------------
 segmentation:
   window_seconds: 4.0          # Pencere süresi (saniye)
-  overlap_ratio: 0.5           # %50 örtüşme
+  overlap_ratio: 0.0          # %50 örtüşme
   # Hesaplanan değerler (kod tarafında otomatik doğrulanır):
   # window_samples = 4.0 * 256 = 1024
   # step_samples   = 1024 * (1 - 0.5) = 512

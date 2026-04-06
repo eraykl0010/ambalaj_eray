@@ -62,13 +62,10 @@ def get_segment_params(cfg: dict) -> dict:
     window_samples = int(win_sec * sr)
     step_samples = int(window_samples * (1 - overlap))
 
-    assert window_samples == 1024, (
-        f"Beklenen 1024 örnek, hesaplanan {window_samples} "
-        f"(sr={sr}, win={win_sec}s)"
-    )
-    assert step_samples == 512, (
-        f"Beklenen 512 adım, hesaplanan {step_samples}"
-    )
+    # Temel doğrulamalar
+    assert window_samples > 0, f"window_samples sıfır olamaz (sr={sr}, win={win_sec}s)"
+    assert step_samples > 0, f"step_samples sıfır olamaz (overlap={overlap})"
+    assert 0.0 <= overlap < 1.0, f"overlap_ratio [0, 1) aralığında olmalı, değer: {overlap}"
 
     return {
         "window_samples": window_samples,
